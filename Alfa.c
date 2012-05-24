@@ -3,20 +3,24 @@
 ** © Pensiero Profondo
 */
 
-/* TODO COSTANTI */
 #define VELOCITA_MARCIA 60
 #define VELOCITA_ROTAZIONE 40
 #define CIRCONFERENZA_RUOTA 10 // In centimetri.
 #define SOGLIA_OSTACOLO 30
 
-/* Lista dei Motori e sensori su Alfa: 
-** A) IDRAULICO
+#pragma config(Sensor, S1,	sensoreAllineamento,	sensorTouch)
+#pragma config(Sensor, S2,	sensoreToccoDestro,	sensorTouch)
+#pragma config(Sensor, S2,	sensoreToccoSinistro,	sensorTouch)
+
+
+/* Lista dei Motori e sensori su Alfa:
+** A) PINZA
 ** B) MOTORE DESTRA
 ** C) MOTORE SINSITRA
-** S0) ULTRASUONI
-** S1) TOCCO ANTERIORE DESTRO
-** S2) TOCCO ANTERIORE SINISTRO
-** S4) COMUNICAZIONE HS
+** Sen1) ULTRASUONI
+** Sen2) TOCCO ANTERIORE DESTRO
+** Sen3) TOCCO ANTERIORE SINISTRO
+** Sen4) COMUNICAZIONE HS
 */
 
 /* Lista delle Azioni su Beta:
@@ -28,68 +32,108 @@
 ** 5) Chiudi Pinza.
 */
 
-int S0, S1, S2;
-int S3, S4, S5;
+int Sen0, Sen1, Sen2;
+int Sen3, Sen4, Sen5;
 
-int Inviare[4];
-int Ricevere[4];
+byte Inviare[4];
+byte Ricevere[4];
 
 int A, C;
 
+/* PROTOTIPI */
+
+void aspetta(int Millisecondi);
+void leggiSensori();
+void leggiMessaggio();
+void inviaMessaggio();
+void beta(int Azione);
+task Ricevi();
+task Invia();
+task Sensori();
+void cammina(int Velocita);
+void fermo();
+int centimetri2gradi ( int Centimetri );
+int gradi2centimetri ( int Gradi );
+void vaiAvanti ( int Centimetri );
+void vaiIndietro ( int Centimetri );
+void ruota(int Gradi);
+void giraDestra();
+void giraSinistra();
+bool presenteOstacolo();
+void allinea();
+void aspettaPulsante();
+void pulisci();
+void pulisciRiga (int riga);
+void scrivi(int riga, const char* stringa);
+void calibraBraccio();
+void apriBraccio();
+void apriPinza();
+void chiudiPinza();
+
 /* FUNZIONI FONDAMENTALI */
+
+//Implementata!
 void aspetta ( int Millisecondi ) {
-	// TODO 
+	wait1Msec(Millisecondi);
 }
 
 void leggiSensori () {
-	// TODO
+	Sen0 = SensorValue[sensoreAllineamento];
+	Sen1 = SensorValue[sensoreToccoDestro];
+	Sen2 = SensorValue[sensoreToccoSinistro];
 }
 
 /* FUNZIONI DI COMUNICAZIONE */
 void leggiMessaggio () {
-	// TODO: se presenti messaggi in coda...
-	// TODO, legge e posiziona in Ricevere[8],
-	// Poi spatte in S3, S4, S5, C.
-	// TODO: cancella la coda.
+	if (nxtGetAvailHSBytes() >= 4) {
+	  	nxtReadRawHS(Ricevere, 4);
+	  	Sen3 = Ricevere[0];
+	  	Sen4 = Ricevere[1];
+	  	Sen5 = Ricevere[2];
+	  	C = Ricevere[3];
+  	}
 }
 
 void inviaMessaggio  () {
-	// TODO
-	// Crea Inviare[8]
-	// Manda S0, S1, S2, A
+	Inviare[0] = Sen0;
+	Inviare[1] = Sen1;
+	Inviare[2] = Sen2;
+	Inviare[3] = A;
+	nxtWriteRawHS(Inviare, 4);
 }
 
 /* Esegue un'azione su Beta. */
 void beta ( int Azione ) {
-	// TODO
-	// Imposta A.
-	// Aspetta che C diventi A.
-	// Reimposta A = 0;
-	// Aspetta qualche millisecondo...
+	A = Azione;
+	while ( C != Azione ) {
+		aspetta(10);
+	}
+	A = 0;
+	aspetta(50);
 }
 
 /* TASK COMUNICAZIONE */
 task Ricevi () {
 	while ( 1 ) {
 		leggiMessaggio();
-		// TODO Fine timeslice.
+		EndTimeslice();
 	}
 }
 
 task Invia() {
 	// Imposta gli Ultimi.
-	int lS0, lS1, lS2, lA;
-	lS0 = lS1 = lS2 = lA = -1;
+	int lSen0, lSen1, lSen2, lA;
+	lSen0 = lSen1 = lSen2 = lA = -1;
 	while ( 1 ) {
 		// Se qualcosa è stato modificato...
-		if ( S0 != lS0 || S1 != lS1 || S2 != lS2 || A != lA ) {
-			lS0 = S0;
-			lS1 = S1;
-			lS2 = S2;
+		if ( Sen0 != lSen0 || Sen1 != lSen1 || Sen2 != lSen2 || A != lA ) {
+			lSen0 = Sen0;
+			lSen1 = Sen1;
+			lSen2 = Sen2;
 			lA = A;
 			inviaMessaggio();
 		}
-		// TODO Fine timeslice.
+		EndTimeslice();
 	}
 }
 
@@ -97,22 +141,19 @@ task Invia() {
 task Sensori () {
 	while ( 1 ) {
 		leggiSensori();
-		// TODO Fine timeslice.
+		EndTimeslice();
 	}
 }
 
-
 /* FUNZIONI DI MOVIMENTO */
 void cammina ( int Velocita ) {
-	// Imposta movimento sincronizzato
-	// a velocità...
-	// TODO Sync 1:1
+	nSyncedTurnRatio = 100;
+	nMotorEncoder[motorB] = Velocita;
 }
 
 void fermo() {
 	cammina(0);
 }
-
 
 int centimetri2gradi ( int Centimetri ) {
 	return ( Centimetri * 360 / CIRCONFERENZA_RUOTA );
@@ -123,11 +164,11 @@ int gradi2centimetri ( int Gradi ) {
 }
 
 void vaiAvanti ( int Centimetri ) {
-	// TODO IMPOSTA GIRI A ZERO
-	//				TODO
-	while ( abs(gradi2centimetri([GIRIPERCORSI])) < abs(Centimetri) ) {
-		cammina(VELOCITA_MARCIA);
-	}
+	nSyncedTurnRatio = 100;
+	nMotorEncoder[motorB] = 0;
+	nMotorEncoderTarget[motorB] = centimetri2gradi(Centimetri);
+	motor[motorB] = VELOCITA_MARCIA * sgn(Centimetri);
+	while(nMotorRunState[motorB] != runStateIdle)  {}
 	fermo();
 }
 
@@ -136,12 +177,11 @@ void vaiIndietro ( int Centimetri ) {
 }
 
 void ruota ( int Gradi ) {
-	// TODO Rapporto Sync 1:-1
-	// TODO Imposta giri a zero
-	while ( abs([GRADIPERCORSI]) < abs(Gradi) ) {
-		// TODO Cammina...
-		// Velocità: VELOCITA_ROTAZIONE * sgn(Gradi)
-	}
+	nSyncedTurnRatio = -100;
+	nMotorEncoder[motorB] = 0;
+	nMotorEncoderTarget[motorB] = Gradi;
+	motor[motorB] = VELOCITA_ROTAZIONE * sgn(Gradi);
+	while(nMotorRunState[motorB] != runStateIdle)  {}
 	fermo();
 }
 
@@ -154,13 +194,13 @@ void giraSinistra () {
 }
 
 bool presenteOstacolo () {
-	if ( S0 <= SOGLIA_OSTACOLO ) {
+	if ( Sen0 <= SOGLIA_OSTACOLO ) {
 		return 1;
 	} else {
 		return 0;
 	}
 }
-	
+
 void allinea () {
 	vaiIndietro ( 5 );
 	int velocita = 80;
@@ -169,21 +209,42 @@ void allinea () {
 			cammina(velocita);
 		}
 		// Inverte e dimezza velocità.
-		velocita *= -0.5;
+		velocita *= -0.6;
 	}
 	fermo();
 }
 
+bool pulsantePremuto() {
+	if ( nNxtButtonPressed == 3 ) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
 void aspettaPulsante () {
-	// TODO
-	while ( !pulsantePremuto ) {
+	while ( !pulsantePremuto() ) {
 		aspetta(5);
 	}
 	aspetta(150);
 }
 
-void scrivi(const char* stringa) {
-	// TODO
+//nuova!
+void pulisci(){
+	eraseDisplay();
+	//Pulisce l'intero schermo
+}
+
+//Nuova!
+void pulisciRiga (int riga){
+	nxtDisplayClearTextLine(riga);
+//Pulisce la riga indicata
+}
+
+//Implementata!
+void scrivi(int riga, const char* stringa) {
+	nxtDisplayTextLine(riga, stringa);
+	//Pulisce la riga indicata e vi scrive.
 }
 
 /* ADATTATORI AZIONI BETA */
@@ -212,44 +273,49 @@ void chiudiPinza() {
 
 task main () {
 
-	scrivi("Benvenuti in Nautilus.");
+	pulisci();
+	scrivi(2,"Benvenuti in Nautilus.");
 	aspetta(1000);
-	scrivi("Accensione motori...");
+	scrivi(4,"Accensione motori...");
 	aspetta(1000);
 
 	/* IMPOSTAZIONE MOTORI */
-	// TODO Imposta Comunicazione HS
-	// TODO Sincronizza BC.
-	// TODO Motori Frenati.
-		
+	SensorType[Sen4] = sensorHighSpeed;
+	nxtHS_Mode = hsRawMode;
+	// Modalita' frenata
+	bFloatDuringInactiveMotorPWM = false;
+	nSyncedMotors = synchBC;
+
 	/* IMPOSTA VALORI A ZERO */
-	S0 = S1 = S2 = S3 = S4 = S5 = 0;
+	Sen0 = Sen1 = Sen2 = Sen3 = Sen4 = Sen5 = 0;
 	A = C = 0;
-	
+
 	/* AVVIA I TASK */
-	startTask(Sensori);
-	startTask(Ricevi);
-	startTask(Invia);
-	
-	scrivi("Aperto braccio Nautilus BETA?");
+	StartTask(Sensori);
+	StartTask(Ricevi);
+	StartTask(Invia);
+
+	pulisci();
+	scrivi(2, "Aperto braccio Nautilus BETA?");
 	aspettaPulsante();
-	scrivi("Accendere Nautilus BETA. Fatto?");
+	scrivi(4, "Accendere Nautilus BETA. Fatto?");
 	aspettaPulsante();
-	scrivi("Check comunicazione.");
+	scrivi(6, "Check comunicazione.");
 	aspetta(1000);
 	beta(42);
-	
+
 	/* Avvia calibrazione */
+	pulisci();
 	scrivi("Calibrazione braccio...");
 	calibraBraccio();
-	
+
 	/* PRONTO */
+	pulisci();
 	scrivi("Nautilus pronto. Start?");
 	aspettaPulsante();
-	
+
 	/* SERIE DI AZIONI */
-	// TODO RISOLVI IL PERCORSO.
-	
+
 	// Per ora gioca un po'.
 	vaiAvanti(15);
 	vaiIndietro(10);
@@ -262,12 +328,10 @@ task main () {
 	vaiAvanti(5);
 	giraDestra();
 	giraDestra();
-	
-	
-	
-	
+
 	/* MORTE */
-	scrivi("Nautilus BYE.");
+	pulisci();
+	scrivi(2,"Nautilus BYE.");
 	aspetta(3000);
-	
+
 }
